@@ -1,18 +1,11 @@
 import telebot
 import requests
-from datetime import datetime, timedelta
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 bot = telebot.TeleBot('6109508272:AAHcnsLRl9OF2nTfu4CepevF-OgEsJSV3Sc')
-API_KEY = 'fb281810f993e41090421b93f80d01a4'
+API_KEY_TMDB = 'fb281810f993e41090421b93f80d01a4'  # Reemplaza con tu API key de TMDb
+API_KEY_RAWG = '6a15efce69a64898baec03ec846c3358'  # Reemplaza con tu API key de RAWG
 WEB_URL = 'https://ramirez55.github.io/Servicios_Oficiales/'
 CHANNEL_ID = '@descriptionchanel'
-
-# Lista de nombres de usuario de los administradores
-admin_users = ['darielxd', 'pjsr55']  # Agrega aquí los nombres de usuario de los administradores
-
-
-
 
 # Diccionario para almacenar los canales de los usuarios con acceso
 usuarios_canales = {'darielxd'}
@@ -26,9 +19,6 @@ users = False
 # Variable para el administrador banear usuarios
 ban = False
 
-# Variable para almacenar las fechas de vencimiento de los contratos
-contratos = {}
-
 @bot.message_handler(commands=['start'])
 def start(message):
     global add
@@ -39,7 +29,7 @@ def start(message):
     users = False
     ban = False
 
-    bot.send_message(chat_id=message.chat.id, text=f'¡Hola, {message.from_user.username}! Bienvenido al bot de descripciones de películas y series.')
+    bot.send_message(chat_id=message.chat.id, text=f'¡Hola, {message.from_user.username}! Bienvenido al bot de descripciones de películas, series y juegos.')
     bot.send_message(chat_id=message.chat.id, text='Por favor, únete a nuestro canal para recibir las últimas actualizaciones: ' + CHANNEL_ID)
 
 @bot.message_handler(commands=['add'])
@@ -61,7 +51,6 @@ def agregar_usuario(message):
     if message.from_user.username == 'darielxd':
         usuario = message.text.replace("@", "")
         usuarios_canales[usuario] = True
-        contratos[usuario] = None  # Inicialmente no hay fecha de vencimiento del contrato
         add = False
         bot.send_message(chat_id=message.chat.id, text=f"El usuario @{usuario} ahora tiene acceso al bot.")
     else:
@@ -74,8 +63,8 @@ def ver_usuarios(message):
     # Verificar que el usuario que envió el mensaje sea el administrador
     if message.from_user.username == 'darielxd':
         users = True
-        usuarios_texto = "n".join(usuarios_canales.keys())
-        bot.send_message(chat_id=message.chat.id, text=f"Usuarios con acceso al bot:n{usuarios_texto}")
+        usuarios_texto = "\n".join(usuarios_canales.keys())
+        bot.send_message(chat_id=message.chat.id, text=f"Usuarios con acceso al bot:\n{usuarios_texto}")
     else:
         bot.send_message(chat_id=message.chat.id, text="Lo siento, esta función es solo para administradores.")
 
@@ -98,76 +87,55 @@ def banear_usuario(message):
     if message.from_user.username == 'darielxd':
         usuario = message.text.replace("@", "")
         usuarios_canales.pop(usuario, None)
-        contratos.pop(usuario, None)  # Eliminar la fecha de vencimiento del contrato del usuario
         ban = False
         bot.send_message(chat_id=message.chat.id, text=f"El usuario @{usuario} ha sido baneado del bot.")
     else:
         bot.send_message(chat_id=message.chat.id, text="Lo siento, esta función es solo para administradores.")
 
-@bot.message_handler(commands=['contrato'])
-def establecer_contrato(message):
-    # Verificar que el usuario tiene acceso al bot
-    if message.from_user.username in usuarios_canales:
-        global contratos
+def obtener_descripcion_pelicula(nombre_pelicula):
+    url = f'https://api.themoviedb.org/3/search/movie?api_key={API_KEY_TMDB}&query={nombre_pelicula}&language=es'
+    response = requests.get(url)
+    data = response.json
+    ()
+    if 'results' in data and len(data['results']) > 0:
+        result = data['results'][0]
+        if 'overview' in result:
+            return result['overview']
+    return None
 
-        usuario = message.from_user.username
-
-        # Obtener la fecha actual
-        fecha_actual = datetime.now()
-
-        # Establecer la fecha de vencimiento del contrato a 30 días a partir de la fecha actual
-        fecha_vencimiento = fecha_actual + timedelta(days=30)
-
-        # Guardar la fecha de vencimiento del contrato para el usuario
-        contratos[usuario] = fecha_vencimiento
-
-        # Formatear la fecha de vencimiento
-        fecha_vencimiento_str = fecha_vencimiento.strftime("%d/%m/%Y")
-        
-        bot.send_message(chat_id=message.chat.id, text=f"Hola @{usuario}, tu contrato vence el {fecha_vencimiento_str}.")
-
-        # Verificar si faltan dos días o menos para el vencimiento del contrato
-        if fecha_vencimiento - timedelta(days=2) <= fecha_actual:
-            bot.send_message(chat_id=message.chat.id, text="¡Atención! Tu contrato está próximo a vencer. Si deseas reanudarlo, pulsa el siguiente botón.")
-            # Crear botón para reanudar el contrato
-            markup = InlineKeyboardMarkup()
-            button = InlineKeyboardButton(text="Reanudar contrato", callback_data="reanudar_contrato")
-            markup.add(button)
-            bot.send_message(chat_id=message.chat.id, text="Si deseas reanudar el contrato antes de que se agoten los 2 días, pulsa el siguiente botón.", reply_markup=markup)
-    else:
-        bot.send_message(chat_id=message.chat.id, text="No tienes acceso para utilizar este bot. Solicita al administrador que te añada.")
-
-@bot.callback_query_handler(func=lambda call: call.data == "reanudar_contrato")
-def reanudar_contrato(call):
-    usuario = call.from_user.username
-    if usuario in contratos:
-        contratos[usuario] = None  # Reiniciar la fecha de vencimiento del contrato a None
-        bot.send_message(chat_id=call.message.chat.id, text="Contrato reanudado. ¡Disfruta del servicio!")
-    else:
-        bot.send_message(chat_id=call.message.chat.id, text="No tienes un contrato para reanudar.")
+def obtener_descripcion_juego(nombre_juego):
+    url = f'https://api.rawg.io/api/games?key={API_KEY_RAWG}&search={nombre_juego}'
+    response = requests.get(url)
+    data = response.json()
+    if 'results' in data and len(data['results']) > 0:
+        result = data['results'][0]
+        if 'description_raw' in result:
+            return result['description_raw']
+    return None
 
 @bot.message_handler(commands=['descripcion'])
 def descripcion(message):
     # Verificar si el usuario tiene acceso al bot
     if message.from_user.username in usuarios_canales:
-        movie_title = message.text.split(' ', 1)[1]
-        url = f'https://api.themoviedb.org/3/search/movie?api_key={API_KEY}&query={movie_title}&language=es'
-        response = requests.get(url)
-        data = response.json()
-        if 'results' in data and len(data['results']) > 0:
-            result = data['results'][0]
-            if 'overview' in result:
-                description = result['overview']
-                image_path = result.get('poster_path', None)
-                if image_path:
-                    image_url = f"https://image.tmdb.org/t/p/original{image_path}"
-                    bot.send_photo(chat_id=message.chat.id, photo=image_url, caption=f'{description}n📽️ ¡En nuestra web encontrarás más servicios que prestamos! {WEB_URL}n')
-                else:
-                    bot.send_message(chat_id=message.chat.id, text=f'{description}n📽️ ¡En nuestra web encontrarás más servicios que prestamos! {WEB_URL}n')
-            else:
-                bot.send_message(chat_id=message.chat.id, text=f'No se encontraron descripciones para {movie_title}')
+        parametro = message.text.split(' ', 1)
+        if len(parametro) < 2:
+            bot.send_message(chat_id=message.chat.id, text="Por favor, proporciona el tipo de descripción (pelicula/serie o juego) y el nombre.")
+            return
+
+        tipo_descripcion = parametro[0].lower().replace("/", "")
+        nombre = parametro[1]
+
+        descripcion = None
+
+        if tipo_descripcion == "pelicula" or tipo_descripcion == "serie":
+            descripcion = obtener_descripcion_pelicula(nombre)
+        elif tipo_descripcion == "juego":
+            descripcion = obtener_descripcion_juego(nombre)
+        
+        if descripcion:
+            bot.send_message(chat_id=message.chat.id, text=descripcion)
         else:
-            bot.send_message(chat_id=message.chat.id, text=f'No se encontraron resultados para {movie_title}')
+            bot.send_message(chat_id=message.chat.id, text=f"No se encontró la descripción para '{nombre}'.")
     else:
         bot.send_message(chat_id=message.chat.id, text="No tienes acceso para utilizar este bot. Solicita al administrador que te añada.")
 
